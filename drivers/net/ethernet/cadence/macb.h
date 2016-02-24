@@ -437,6 +437,10 @@
 #define MACB_REV_OFFSET				0
 #define MACB_REV_SIZE				16
 
+/* Bitfields in PCSCNTRL */
+#define GEM_PCSAUTONEG_OFFSET			12
+#define GEM_PCSAUTONEG_SIZE			1
+
 /* Bitfields in DCFG1. */
 #define GEM_IRQCOR_OFFSET			23
 #define GEM_IRQCOR_SIZE				1

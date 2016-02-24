@@ -2400,6 +2400,11 @@ static void macb_init_hw(struct macb *bp)
 			     MACB_BIT(HRESP));
 	}
 
+	if ((bp->phy_interface == PHY_INTERFACE_MODE_SGMII) &&
+	    (bp->caps & MACB_CAPS_PCS))
+		gem_writel(bp, PCSCNTRL,
+			   gem_readl(bp, PCSCNTRL) | GEM_BIT(PCSAUTONEG));
+
 	/* Enable TX and RX */
 	macb_writel(bp, NCR, MACB_BIT(RE) | MACB_BIT(TE) | MACB_BIT(MPE) |
 		    MACB_BIT(PTPUNI));
@@ -3268,6 +3273,11 @@ static int macb_init(struct platform_device *pdev)
 	if (bp->phy_interface == PHY_INTERFACE_MODE_SGMII)
 		val |= GEM_BIT(SGMIIEN) | GEM_BIT(PCSSEL);
 	macb_writel(bp, NCFGR, val);
+
+	if ((bp->phy_interface == PHY_INTERFACE_MODE_SGMII) &&
+	    (bp->caps & MACB_CAPS_PCS))
+		gem_writel(bp, PCSCNTRL,
+			   gem_readl(bp, PCSCNTRL) | GEM_BIT(PCSAUTONEG));
 
 	return 0;
 }
