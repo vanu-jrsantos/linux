@@ -346,6 +346,11 @@ static int dwc3_ep0_handle_status(struct dwc3 *dwc,
 				usb_status |= 1 << USB_DEV_STAT_U2_ENABLED;
 		}
 
+		/* Sends the status indicating if the remote wakeup is
+		 * supported by device.
+		 */
+		usb_status |= dwc->remote_wakeup << USB_DEVICE_REMOTE_WAKEUP;
+
 		break;
 
 	case USB_RECIP_INTERFACE:
@@ -771,7 +776,10 @@ static int dwc3_ep0_std_request(struct dwc3 *dwc, struct usb_ctrlrequest *ctrl)
 
 	switch (ctrl->bRequest) {
 	case USB_REQ_GET_STATUS:
-		ret = dwc3_ep0_handle_status(dwc, ctrl);
+		if (le16_to_cpu(ctrl->wIndex) == OTG_STS_SELECTOR)
+			ret = dwc3_ep0_delegate_req(dwc, ctrl);
+		else
+			ret = dwc3_ep0_handle_status(dwc, ctrl);
 		break;
 	case USB_REQ_CLEAR_FEATURE:
 		ret = dwc3_ep0_handle_feature(dwc, ctrl, 0);
