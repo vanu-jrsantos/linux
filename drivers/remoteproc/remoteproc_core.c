@@ -1427,6 +1427,7 @@ void rproc_shutdown(struct rproc *rproc)
 {
 	struct device *dev = &rproc->dev;
 	int ret;
+	int pre_rproc_state;
 
 	ret = mutex_lock_interruptible(&rproc->lock);
 	if (ret) {
@@ -1443,6 +1444,9 @@ void rproc_shutdown(struct rproc *rproc)
 		atomic_inc(&rproc->power);
 		goto out;
 	}
+
+	pre_rproc_state = rproc->state;
+	rproc->state = RPROC_OFFLINE;
 
 	/* clean up all acquired resources */
 	rproc_resource_cleanup(rproc);
