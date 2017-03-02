@@ -28,6 +28,8 @@
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/pm_runtime.h>
+#include <linux/soc/xilinx/zynqmp/fw.h>
+#include <linux/slab.h>
 
 struct dwc3_of_simple {
 	struct device		*dev;
@@ -94,6 +96,52 @@ static int dwc3_of_simple_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, simple);
 	simple->dev = dev;
+
+	if (of_device_is_compatible(pdev->dev.of_node,
+				    "xlnx,zynqmp-dwc3")) {
+
+		char			*soc_rev;
+		struct resource		*res;
+		void __iomem		*regs;
+
+		res = platform_get_resource(pdev,
+					    IORESOURCE_MEM, 0);
+
+		regs = devm_ioremap_resource(&pdev->dev, res);
+		if (IS_ERR(regs))
+			return PTR_ERR(regs);
+
+		/* Store the usb control regs into simple for further usage */
+		simple->regs = regs;
+
+		/* read Silicon version using nvmem driver */
+		soc_rev = zynqmp_nvmem_get_silicon_version(&pdev->dev,
+						   "soc_revision");
+
+		if (PTR_ERR(soc_rev) == -EPROBE_DEFER) {
+			/* Do a deferred probe */
+			return -EPROBE_DEFER;
+
+		} else if (!IS_ERR(soc_rev) &&
+					(*soc_rev < ZYNQMP_SILICON_V4)) {
+			/* Add snps,dis_u3_susphy_quirk
+			 * for SOC revison less than v4
+			 */
+			simple->dis_u3_susphy_quirk = true;
+		}
+
+		/* Update soc_rev to simple for future use */
+		simple->soc_rev = *soc_rev;
+
+		/* Clean soc_rev if got a valid pointer from nvmem driver
+		 * else we may end up in kernel panic
+		 */
+		if (!IS_ERR(soc_rev))
+			kfree(soc_rev);
+	}
+
+	/* Set phy data for future use */
+	dwc3_simple_set_phydata(simple);
 
 	ret = dwc3_of_simple_clk_init(simple, of_count_phandle_with_args(np,
 						"clocks", "#clock-cells"));
