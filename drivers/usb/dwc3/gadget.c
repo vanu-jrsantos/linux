@@ -2621,11 +2621,23 @@ static void dwc3_stop_active_transfer(struct dwc3 *dwc, u32 epnum, bool force)
 	memset(&params, 0, sizeof(params));
 	ret = dwc3_send_gadget_ep_cmd(dep, cmd, &params);
 	WARN_ON_ONCE(ret);
-	dep->resource_index = 0;
 	dep->flags &= ~DWC3_EP_BUSY;
 
+	/*
+	 * when transfer is stopped with force rm bit false, it can be
+	 * restarted by passing resource_index in params; don't loose it
+	 */
+	if (force)
+		dep->resource_index = 0;
+
 	if (dwc3_is_usb31(dwc) || dwc->revision < DWC3_REVISION_310A) {
-		dep->flags |= DWC3_EP_END_TRANSFER_PENDING;
+		/*
+		 * CMD COMPLETE interrupt is not getting generated for isoc
+		 * endpoints, so don't set DWC3_EP_END_TRANSFER_PENDING flag
+		 */
+		if (!usb_endpoint_xfer_isoc(dep->endpoint.desc))
+			dep->flags |= DWC3_EP_END_TRANSFER_PENDING;
+
 		udelay(100);
 	}
 }
