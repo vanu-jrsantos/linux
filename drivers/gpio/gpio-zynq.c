@@ -112,6 +112,17 @@ struct gpio_regs {
 	u32 int_any[ZYNQMP_GPIO_MAX_BANK];
 };
 
+struct gpio_regs {
+	u32 datamsw[ZYNQMP_GPIO_MAX_BANK];
+	u32 datalsw[ZYNQMP_GPIO_MAX_BANK];
+	u32 dirm[ZYNQMP_GPIO_MAX_BANK];
+	u32 outen[ZYNQMP_GPIO_MAX_BANK];
+	u32 int_en[ZYNQMP_GPIO_MAX_BANK];
+	u32 int_dis[ZYNQMP_GPIO_MAX_BANK];
+	u32 int_type[ZYNQMP_GPIO_MAX_BANK];
+	u32 int_polarity[ZYNQMP_GPIO_MAX_BANK];
+	u32 int_any[ZYNQMP_GPIO_MAX_BANK];
+};
 /**
  * struct zynq_gpio - gpio device private data structure
  * @chip:	instance of the gpio_chip
