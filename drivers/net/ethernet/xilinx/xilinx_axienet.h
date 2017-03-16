@@ -443,7 +443,20 @@ struct axidma_bd {
 #define DESC_DMA_MAP_SINGLE 0
 #define DESC_DMA_MAP_PAGE 1
 
+#ifdef CONFIG_XILINX_TSN
+enum XAE_QUEUE {
+	XAE_BE = 0, /* best effort */
+	XAE_RE,	   /* reserved(cbs) */
+	XAE_ST,    /* Scheduled */
+	XAE_MAX_QUEUES,
+};
+#else
 #define XAE_MAX_QUEUES   1
+#endif
+
+#ifdef CONFIG_XILINX_TSN_PTP
+#define SIOCCHIOCTL SIOCDEVPRIVATE
+#endif
 /**
  * struct axienet_local - axienet private per device data
  * @ndev:	Pointer for net_device to which it will be attached.
@@ -454,6 +467,18 @@ struct axidma_bd {
  * @napi:	Napi Structure array for all dma queues
  * @num_queues: Total number of DMA queues
  * @dq:		DMA queues data
+ * @is_tsn:	Denotes a tsn port
+ * @temac_no:	Denotes the port number in TSN IP
+ * @timer_priv: PTP timer private data pointer
+ * @ptp_tx_irq: PTP tx irq
+ * @ptp_rx_irq: PTP rx irq
+ * @rtc_irq:	PTP RTC irq
+ * @qbv_irq:	QBV shed irq
+ * @ptp_rx_hw_pointer: ptp rx hw pointer
+ * @ptp_rx_sw_pointer: ptp rx sw pointer
+ * @ptp_txq:	PTP tx queue header
+ * @tx_tstamp_work: PTP timestamping work queue
+ * @ptp_tx_lock: PTP tx lock
  * @dma_err_tasklet: Tasklet structure to process Axi DMA errors
  * @eth_irq:	Axi Ethernet IRQ number
  * @phy_type:	Phy type to identify between MII/GMII/RGMII/SGMII/1000 Base-X
@@ -730,5 +755,13 @@ static inline void axienet_rxts_iow(struct  axienet_local *lp, off_t reg,
 int axienet_mdio_setup(struct axienet_local *lp, struct device_node *np);
 int axienet_mdio_wait_until_ready(struct axienet_local *lp);
 void axienet_mdio_teardown(struct axienet_local *lp);
+#ifdef CONFIG_XILINX_TSN_PTP
+void axienet_tx_tstamp(struct work_struct *work);
+#endif
+#ifdef CONFIG_XILINX_TSN_QBV
+int axienet_qbv_init(struct net_device *ndev);
+void axienet_qbv_remove(struct net_device *ndev);
+int axienet_set_schedule(struct net_device *ndev, void __user *useraddr);
+#endif
 
 #endif /* XILINX_AXI_ENET_H */
