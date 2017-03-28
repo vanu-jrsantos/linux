@@ -177,6 +177,12 @@
 #define DWC3_DESCFETCHQ		13
 #define DWC3_EVENTQ		15
 
+/* Global SoC Bus Configuration Register */
+#define DWC3_GSBUSCFG0_DATRDREQINFO	(0xf << 28)
+#define DWC3_GSBUSCFG0_DESRDREQINFO	(0xf << 24)
+#define DWC3_GSBUSCFG0_DATWRREQINFO	(0xf << 20)
+#define DWC3_GSBUSCFG0_DESWRREQINFO	(0xf << 16)
+
 /* Global RX Threshold Configuration Register */
 #define DWC3_GRXTHRCFG_MAXRXBURSTSIZE(n) (((n) & 0x1f) << 19)
 #define DWC3_GRXTHRCFG_RXPKTCNT(n) (((n) & 0xf) << 24)
