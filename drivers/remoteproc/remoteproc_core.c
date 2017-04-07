@@ -930,63 +930,9 @@ static void rproc_resource_cleanup(struct rproc *rproc)
 	/* clean up remote vdev entries */
 	list_for_each_entry_safe(rvdev, rvtmp, &rproc->rvdevs, node)
 		kref_put(&rvdev->refcount, rproc_vdev_release);
-}
 
-static int rproc_start(struct rproc *rproc, const struct firmware *fw)
-{
-	struct resource_table *table, *loaded_table;
-	struct device *dev = &rproc->dev;
-	int ret, tablesz;
-
-	/* look for the resource table */
-	table = rproc_find_rsc_table(rproc, fw, &tablesz);
-	if (!table) {
-		dev_err(dev, "Resource table look up failed\n");
-		return -EINVAL;
-	}
-
-	/* load the ELF segments to memory */
-	ret = rproc_load_segments(rproc, fw);
-	if (ret) {
-		dev_err(dev, "Failed to load program segments: %d\n", ret);
-		return ret;
-	}
-
-	/*
-	 * The starting device has been given the rproc->cached_table as the
-	 * resource table. The address of the vring along with the other
-	 * allocated resources (carveouts etc) is stored in cached_table.
-	 * In order to pass this information to the remote device we must copy
-	 * this information to device memory. We also update the table_ptr so
-	 * that any subsequent changes will be applied to the loaded version.
-	 */
-	loaded_table = rproc_find_loaded_rsc_table(rproc, fw);
-	if (loaded_table) {
-		memcpy(loaded_table, rproc->cached_table, tablesz);
-		rproc->table_ptr = loaded_table;
-	}
-
-	/* power up the remote processor */
-	ret = rproc->ops->start(rproc);
-	if (ret) {
-		dev_err(dev, "can't start rproc %s: %d\n", rproc->name, ret);
-		return ret;
-	}
-
-	/* probe any subdevices for the remote processor */
-	ret = rproc_probe_subdevices(rproc);
-	if (ret) {
-		dev_err(dev, "failed to probe subdevices for %s: %d\n",
-			rproc->name, ret);
-		rproc->ops->stop(rproc);
-		return ret;
-	}
-
-	rproc->state = RPROC_RUNNING;
-
-	dev_info(dev, "remote processor %s is now up\n", rproc->name);
-
-	return 0;
+	/* Release DMA declared memory */
+	dma_release_declared_memory(dev->parent);
 }
 
 /*
