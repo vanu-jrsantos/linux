@@ -1161,6 +1161,8 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 
 	dwc->enable_guctl1_resume_quirk = device_property_read_bool(dev,
 				"snps,enable_guctl1_resume_quirk");
+	dwc->enable_guctl1_ipd_quirk = device_property_read_bool(dev,
+				"snps,enable_guctl1_ipd_quirk");
 
 	dwc->lpm_nyet_threshold = lpm_nyet_threshold;
 	dwc->tx_de_emphasis = tx_de_emphasis;

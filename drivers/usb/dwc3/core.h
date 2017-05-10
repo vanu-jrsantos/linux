@@ -313,6 +313,7 @@
 
 /* Global User Control Register 1 */
 #define DWC3_GUCTL1_RESUME_QUIRK		(1 << 10)
+#define DWC3_GUCTL1_IPD_QUIRK			(1 << 9)
 
 /* Global User Control Register 2 */
 #define DWC3_GUCTL2_RST_ACTBITLATER		BIT(14)
