@@ -1033,6 +1033,63 @@ static bool rproc_is_running_fw(struct rproc *rproc, const struct firmware *fw)
 	return true;
 }
 
+static int rproc_start(struct rproc *rproc, const struct firmware *fw)
+{
+	struct resource_table *table, *loaded_table;
+	struct device *dev = &rproc->dev;
+	int ret, tablesz;
+
+	/* look for the resource table */
+	table = rproc_find_rsc_table(rproc, fw, &tablesz);
+	if (!table) {
+		dev_err(dev, "Resource table look up failed\n");
+		return -EINVAL;
+	}
+
+	/* load the ELF segments to memory */
+	ret = rproc_load_segments(rproc, fw);
+	if (ret) {
+		dev_err(dev, "Failed to load program segments: %d\n", ret);
+		return ret;
+	}
+
+	/*
+	 * The starting device has been given the rproc->cached_table as the
+	 * resource table. The address of the vring along with the other
+	 * allocated resources (carveouts etc) is stored in cached_table.
+	 * In order to pass this information to the remote device we must copy
+	 * this information to device memory. We also update the table_ptr so
+	 * that any subsequent changes will be applied to the loaded version.
+	 */
+	loaded_table = rproc_find_loaded_rsc_table(rproc, fw);
+	if (loaded_table) {
+		memcpy(loaded_table, rproc->cached_table, tablesz);
+		rproc->table_ptr = loaded_table;
+	}
+
+	/* power up the remote processor */
+	ret = rproc->ops->start(rproc);
+	if (ret) {
+		dev_err(dev, "can't start rproc %s: %d\n", rproc->name, ret);
+		return ret;
+	}
+
+	/* probe any subdevices for the remote processor */
+	ret = rproc_probe_subdevices(rproc);
+	if (ret) {
+		dev_err(dev, "failed to probe subdevices for %s: %d\n",
+			rproc->name, ret);
+		rproc->ops->stop(rproc);
+		return ret;
+	}
+
+	rproc->state = RPROC_RUNNING;
+
+	dev_info(dev, "remote processor %s is now up\n", rproc->name);
+
+	return 0;
+}
+
 /*
  * take a firmware and boot a remote processor with it.
  */
@@ -1040,7 +1097,7 @@ static int rproc_fw_boot(struct rproc *rproc, const struct firmware *fw)
 {
 	struct device *dev = &rproc->dev;
 	const char *name = rproc->firmware;
-	struct resource_table *table;
+	struct resource_table *table, *loaded_table;
 	int ret, tablesz;
 	bool is_running = false;
 
@@ -1371,7 +1428,6 @@ void rproc_shutdown(struct rproc *rproc)
 {
 	struct device *dev = &rproc->dev;
 	int ret;
-	int pre_rproc_state;
 
 	ret = mutex_lock_interruptible(&rproc->lock);
 	if (ret) {
@@ -1388,9 +1444,6 @@ void rproc_shutdown(struct rproc *rproc)
 		atomic_inc(&rproc->power);
 		goto out;
 	}
-
-	pre_rproc_state = rproc->state;
-	rproc->state = RPROC_OFFLINE;
 
 	/* clean up all acquired resources */
 	rproc_resource_cleanup(rproc);
@@ -1698,10 +1751,6 @@ int rproc_del(struct rproc *rproc)
 	mutex_unlock(&rproc->lock);
 
 	rproc_delete_debug_dir(rproc);
-
-	mutex_lock(&rproc->lock);
-	rproc->state = RPROC_DELETED;
-	mutex_unlock(&rproc->lock);
 
 	/* the rproc is downref'ed as soon as it's removed from the klist */
 	mutex_lock(&rproc_list_mutex);
