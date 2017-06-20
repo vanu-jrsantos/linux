@@ -1084,6 +1084,7 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 	u8			lpm_nyet_threshold;
 	u8			tx_de_emphasis;
 	u8			hird_threshold;
+	u32			mdwidth;
 
 	/* default to highest possible threshold */
 	lpm_nyet_threshold = 0xff;
@@ -1169,6 +1170,9 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 
 	dwc->hird_threshold = hird_threshold
 		| (dwc->is_utmi_l1_suspend << 4);
+
+	/* Check if extra quirks to be added */
+	dwc3_simple_check_quirks(dwc);
 
 	dwc->imod_interval = 0;
 }
