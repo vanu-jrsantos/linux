@@ -469,6 +469,7 @@ enum XAE_QUEUE {
  * @num_queues: Total number of DMA queues
  * @dq:		DMA queues data
  * @is_tsn:	Denotes a tsn port
+ * @num_q:	Denotes number of queue in current TSN design
  * @temac_no:	Denotes the port number in TSN IP
  * @timer_priv: PTP timer private data pointer
  * @ptp_tx_irq: PTP tx irq
