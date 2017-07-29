@@ -35,7 +35,6 @@
 #include <linux/of_address.h>
 
 #include "core.h"
-#include "io.h"
 
 /* Xilinx USB 3.0 IP Register */
 #define XLNX_USB_COHERENCY		0x005C
@@ -46,6 +45,8 @@
 #define ULPI_OTG_CTRL_CLEAR		0XC
 #define OTG_CTRL_DRVVBUS_OFFSET		5
 
+#define DWC3_OF_ADDRESS(ADDR)		((ADDR) - DWC3_GLOBALS_REGS_START)
+
 struct dwc3_of_simple {
 	struct device		*dev;
 	struct clk		**clks;
@@ -53,6 +54,7 @@ struct dwc3_of_simple {
 	void __iomem		*regs;
 	struct dwc3		*dwc;
 	bool			wakeup_capable;
+	bool			dis_u3_susphy_quirk;
 };
 
 void dwc3_set_phydata(struct device *dev, struct phy *phy)
@@ -76,6 +78,7 @@ void dwc3_set_phydata(struct device *dev, struct phy *phy)
 		}
 	}
 }
+EXPORT_SYMBOL(dwc3_set_phydata);
 
 int dwc3_enable_hw_coherency(struct device *dev)
 {
@@ -98,6 +101,7 @@ int dwc3_enable_hw_coherency(struct device *dev)
 
 	return 0;
 }
+EXPORT_SYMBOL(dwc3_enable_hw_coherency);
 
 void dwc3_set_simple_data(struct dwc3 *dwc)
 {
@@ -115,6 +119,25 @@ void dwc3_set_simple_data(struct dwc3 *dwc)
 		simple->dwc =  dwc;
 	}
 }
+EXPORT_SYMBOL(dwc3_set_simple_data);
+
+void dwc3_simple_check_quirks(struct dwc3 *dwc)
+{
+	struct device_node *node =
+		of_find_compatible_node(NULL, NULL, "xlnx,zynqmp-dwc3");
+
+	if (node)  {
+		struct platform_device *pdev_parent;
+		struct dwc3_of_simple   *simple;
+
+		pdev_parent = of_find_device_by_node(node);
+		simple = platform_get_drvdata(pdev_parent);
+
+		/* Add snps,dis_u3_susphy_quirk */
+		dwc->dis_u3_susphy_quirk = simple->dis_u3_susphy_quirk;
+	}
+}
+EXPORT_SYMBOL(dwc3_simple_check_quirks);
 
 void dwc3_simple_wakeup_capable(struct device *dev, bool wakeup)
 {
@@ -132,6 +155,7 @@ void dwc3_simple_wakeup_capable(struct device *dev, bool wakeup)
 		simple->wakeup_capable = wakeup;
 	}
 }
+EXPORT_SYMBOL(dwc3_simple_wakeup_capable);
 
 static int dwc3_of_simple_clk_init(struct dwc3_of_simple *simple, int count)
 {
@@ -298,7 +322,9 @@ static void dwc3_simple_vbus(struct dwc3 *dwc, bool vbus_off)
 
 	reg = DWC3_GUSB2PHYACC_NEWREGREQ | DWC3_GUSB2PHYACC_ADDR(addr);
 	reg |= DWC3_GUSB2PHYACC_WRITE | val;
-	dwc3_writel(dwc->regs, DWC3_GUSB2PHYACC(0), reg);
+
+	addr = DWC3_OF_ADDRESS(DWC3_GUSB2PHYACC(0));
+	writel(reg, dwc->regs + addr);
 }
 
 static int dwc3_of_simple_suspend(struct device *dev)
