@@ -1699,6 +1699,10 @@ int rproc_del(struct rproc *rproc)
 
 	rproc_delete_debug_dir(rproc);
 
+	mutex_lock(&rproc->lock);
+	rproc->state = RPROC_DELETED;
+	mutex_unlock(&rproc->lock);
+
 	/* the rproc is downref'ed as soon as it's removed from the klist */
 	mutex_lock(&rproc_list_mutex);
 	list_del(&rproc->node);
