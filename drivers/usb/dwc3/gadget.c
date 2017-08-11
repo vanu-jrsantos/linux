@@ -1086,11 +1086,13 @@ static u32 dwc3_calc_trbs_left(struct dwc3_ep *dep)
 static void dwc3_prepare_one_trb_sg(struct dwc3_ep *dep,
 		struct dwc3_request *req)
 {
-	struct scatterlist *sg = req->sg;
+	struct scatterlist *sg = req->sg_to_start;
 	struct scatterlist *s;
 	int		i;
+	unsigned int remaining = req->request.num_mapped_sgs
+		- req->num_queued_sgs;
 
-	for_each_sg(sg, s, req->num_pending_sgs, i) {
+	for_each_sg(sg, s, remaining, i) {
 		unsigned int length = req->request.length;
 		unsigned int maxp = usb_endpoint_maxp(dep->endpoint.desc);
 		unsigned int rem = length % maxp;
@@ -1118,6 +1120,16 @@ static void dwc3_prepare_one_trb_sg(struct dwc3_ep *dep,
 		} else {
 			dwc3_prepare_one_trb(dep, req, chain, i);
 		}
+
+		/* In the case where not able to queue trbs for all sgs in
+		 * request because of trb not available, update sg_to_start
+		 * to next sg from which we can start queing trbs once trbs
+		 * availbale
+		 */
+		if (chain)
+			req->sg_to_start = sg_next(s);
+
+		req->num_queued_sgs++;
 
 		if (!dwc3_calc_trbs_left(dep))
 			break;
@@ -1351,6 +1363,13 @@ static int __dwc3_gadget_ep_queue(struct dwc3_ep *dep, struct dwc3_request *req)
 	trace_dwc3_ep_queue(req);
 
 	list_add_tail(&req->list, &dep->pending_list);
+
+	/* If core is hibernated, need to wakeup (remote wakeup) */
+	if (dwc->is_hibernated) {
+		dwc->force_hiber_wake = true;
+		gadget_wakeup_interrupt(dwc);
+		dwc->force_hiber_wake = false;
+	}
 
 	/*
 	 * NOTICE: Isochronous endpoints should NEVER be prestarted. We must
