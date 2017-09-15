@@ -92,6 +92,9 @@
 #define GEM_SA3T		0x009C /* Specific3 Top */
 #define GEM_SA4B		0x00A0 /* Specific4 Bottom */
 #define GEM_SA4T		0x00A4 /* Specific4 Top */
+#define GEM_WOL			0x00B8 /* Wake on LAN */
+#define GEM_RXPTPUNI		0x00D4 /* PTP RX Unicast address */
+#define GEM_TXPTPUNI		0x00D8 /* PTP TX Unicast address */
 #define GEM_EFTSH		0x00e8 /* PTP Event Frame Transmitted Seconds Register 47:32 */
 #define GEM_EFRSH		0x00ec /* PTP Event Frame Received Seconds Register 47:32 */
 #define GEM_PEFTSH		0x00f0 /* PTP Peer Event Frame Transmitted Seconds Register 47:32 */
@@ -157,6 +160,7 @@
 #define GEM_PEFTN		0x01f4 /* PTP Peer Event Frame Tx Ns */
 #define GEM_PEFRSL		0x01f8 /* PTP Peer Event Frame Rx Sec Low */
 #define GEM_PEFRN		0x01fc /* PTP Peer Event Frame Rx Ns */
+#define GEM_PCSCNTRL		0x0200 /* PCS Control */
 #define GEM_DCFG1		0x0280 /* Design Config 1 */
 #define GEM_DCFG2		0x0284 /* Design Config 2 */
 #define GEM_DCFG3		0x0288 /* Design Config 3 */
@@ -164,7 +168,6 @@
 #define GEM_DCFG5		0x0290 /* Design Config 5 */
 #define GEM_DCFG6		0x0294 /* Design Config 6 */
 #define GEM_DCFG7		0x0298 /* Design Config 7 */
-
 #define GEM_TXBDCTRL	0x04cc /* TX Buffer Descriptor control register */
 #define GEM_RXBDCTRL	0x04d0 /* RX Buffer Descriptor control register */
 
@@ -204,6 +207,8 @@
 #define MACB_TZQ_OFFSET		12 /* Transmit zero quantum pause frame */
 #define MACB_TZQ_SIZE		1
 #define MACB_SRTSM_OFFSET	15
+#define MACB_PTPUNI_OFFSET			20
+#define MACB_PTPUNI_SIZE			1
 #define MACB_OSSMODE_OFFSET 24 /* Enable One Step Synchro Mode */
 #define MACB_OSSMODE_SIZE	1
 
@@ -444,7 +449,6 @@
 #define GEM_TX_PKT_BUFF_OFFSET			21
 #define GEM_TX_PKT_BUFF_SIZE			1
 
-
 /* Bitfields in DCFG5. */
 #define GEM_TSU_OFFSET				8
 #define GEM_TSU_SIZE				1
@@ -540,6 +544,9 @@
 #define MACB_CAPS_USRIO_DISABLED		0x00000010
 #define MACB_CAPS_JUMBO				0x00000020
 #define MACB_CAPS_GEM_HAS_PTP			0x00000040
+#define MACB_CAPS_PCS				0x00000080
+#define MACB_CAPS_PARTIAL_STORE_FORWARD		0x00000100
+#define MACB_CAPS_WOL				0x00000200
 #define MACB_CAPS_FIFO_MODE			0x10000000
 #define MACB_CAPS_GIGABIT_MODE_AVAILABLE	0x20000000
 #define MACB_CAPS_SG_DISABLED			0x40000000
@@ -720,6 +727,11 @@ struct gem_tx_ts {
 #define GEM_TX_FRMLEN_OFFSET			0
 #define GEM_TX_FRMLEN_SIZE			14
 
+#define GEM_SEC_MASK		0xFFFFFFC0
+#define GEM_TSL_SEC_RS		30
+#define GEM_TSH_SEC_LS		2
+#define GEM_TSL_NSEC_MASK	0x3FFFFFFF
+
 /* Buffer descriptor constants */
 #define GEM_RX_CSUM_NONE			0
 #define GEM_RX_CSUM_IP_ONLY			1
@@ -728,6 +740,8 @@ struct gem_tx_ts {
 
 /* limit RX checksum offload to TCP and UDP packets */
 #define GEM_RX_CSUM_CHECKED_MASK		2
+
+#define GEM_RX_TS_MASK				0x4
 
 /* struct macb_tx_skb - data about an skb which is being transmitted
  * @skb: skb currently being transmitted, only set for the last buffer
