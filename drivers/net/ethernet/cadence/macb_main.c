@@ -2797,6 +2797,28 @@ static struct net_device_stats *macb_get_stats(struct net_device *dev)
 	return nstat;
 }
 
+static int macb_get_settings(struct net_device *dev, struct ethtool_cmd *cmd)
+{
+	struct macb *bp = netdev_priv(dev);
+	struct phy_device *phydev = bp->phy_dev;
+
+	if (!phydev)
+		return -ENODEV;
+
+	return phy_ethtool_gset(phydev, cmd);
+}
+
+static int macb_set_settings(struct net_device *dev, struct ethtool_cmd *cmd)
+{
+	struct macb *bp = netdev_priv(dev);
+	struct phy_device *phydev = bp->phy_dev;
+
+	if (!phydev)
+		return -ENODEV;
+
+	return phy_ethtool_sset(phydev, cmd);
+}
+
 static int macb_get_regs_len(struct net_device *netdev)
 {
 	return MACB_GREGS_NBR * sizeof(u32);
@@ -2961,8 +2983,6 @@ static int macb_get_ts_info(struct net_device *netdev,
 	return ethtool_op_get_ts_info(netdev, info);
 }
 
-=======
->>>>>>> net: macb: Add support for 1588 for Zynq Ultrascale+ MPSoC:drivers/net/ethernet/cadence/macb.c
 static const struct ethtool_ops macb_ethtool_ops = {
 	.get_regs_len		= macb_get_regs_len,
 	.get_regs		= macb_get_regs,
