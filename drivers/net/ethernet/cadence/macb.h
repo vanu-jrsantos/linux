@@ -353,7 +353,7 @@
 #define MACB_PFR_SIZE		1
 #define MACB_PTZ_OFFSET		13 /* Enable pause time zero interrupt */
 #define MACB_PTZ_SIZE		1
-#define MACB_WOL_OFFSET		14 /* Enable wake-on-lan interrupt */
+#define MACB_WOL_OFFSET		28 /* Enable WOL received interrupt */
 #define MACB_WOL_SIZE		1
 #define MACB_DRQFR_OFFSET	18 /* PTP Delay Request Frame Received */
 #define MACB_DRQFR_SIZE		1
@@ -1045,14 +1045,18 @@ struct macb {
 	unsigned int		rx_frm_len_mask;
 	unsigned int		jumbo_max_len;
 
-	u32			wol;
+	unsigned int		tsu_rate;
+
+	struct tasklet_struct   hresp_err_tasklet;
+
+	/* holds value of rx watermark value for pbuf_rxcutthru register */
+	u16			rx_watermark;
 
 	struct macb_ptp_info	*ptp_info;	/* macb-ptp interface */
 #ifdef MACB_EXT_DESC
 	uint8_t hw_dma_cap;
 #endif
 	spinlock_t tsu_clk_lock; /* gem tsu clock locking */
-	unsigned int tsu_rate;
 	struct ptp_clock *ptp_clock;
 	struct ptp_clock_info ptp_clock_info;
 	struct tsu_incr tsu_incr;
