@@ -1685,6 +1685,9 @@ static int axienet_probe(struct platform_device *pdev)
 	if (ret < 0)
 		dev_warn(&pdev->dev, "couldn't find phy i/f\n");
 	lp->phy_interface = ret;
+	if (lp->phy_mode == XAE_PHY_TYPE_1000BASE_X)
+		lp->phy_flags = XAE_PHY_TYPE_1000BASE_X;
+
 	lp->phy_node = of_parse_phandle(pdev->dev.of_node, "phy-handle", 0);
 	if (lp->phy_node) {
 		ret = axienet_mdio_setup(lp, pdev->dev.of_node);
