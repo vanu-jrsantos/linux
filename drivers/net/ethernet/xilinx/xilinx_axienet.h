@@ -589,9 +589,17 @@ struct aximcdma_bd {
 #define XAE_MAX_QUEUES   3
 #endif
 
-#ifdef CONFIG_XILINX_TSN_PTP
-#define SIOCCHIOCTL SIOCDEVPRIVATE
-#endif
+enum axienet_tsn_ioctl {
+	SIOCCHIOCTL = SIOCDEVPRIVATE,
+	SIOC_GET_SCHED,
+	SIOC_PREEMPTION_CFG,
+	SIOC_PREEMPTION_CTRL,
+	SIOC_PREEMPTION_STS,
+	SIOC_PREEMPTION_COUNTER,
+	SIOC_QBU_USER_OVERRIDE,
+	SIOC_QBU_STS,
+};
+
 /**
  * struct axienet_local - axienet private per device data
  * @ndev:	Pointer for net_device to which it will be attached.
@@ -603,6 +611,7 @@ struct aximcdma_bd {
  * @napi:	Napi Structure array for all dma queues
  * @num_queues: Total number of DMA queues
  * @dq:		DMA queues data
+ * @phy_mode:	Phy type to identify between MII/GMII/RGMII/SGMII/1000 Base-X
  * @is_tsn:	Denotes a tsn port
  * @temac_no:	Denotes the port number in TSN IP
  * @timer_priv: PTP timer private data pointer
@@ -617,7 +626,6 @@ struct aximcdma_bd {
  * @ptp_tx_lock: PTP tx lock
  * @dma_err_tasklet: Tasklet structure to process Axi DMA errors
  * @eth_irq:	Axi Ethernet IRQ number
- * @phy_type:	Phy type to identify between MII/GMII/RGMII/SGMII/1000 Base-X
  * @options:	AxiEthernet option word
  * @last_link:	Phy link state in which the PHY was negotiated earlier
  * @features:	Stores the extended features supported by the axienet hw
@@ -935,6 +943,7 @@ void axienet_tx_tstamp(struct work_struct *work);
 int axienet_qbv_init(struct net_device *ndev);
 void axienet_qbv_remove(struct net_device *ndev);
 int axienet_set_schedule(struct net_device *ndev, void __user *useraddr);
+int axienet_get_schedule(struct net_device *ndev, void __user *useraddr);
 #endif
 
 #ifdef CONFIG_XILINX_TSN_QBR
