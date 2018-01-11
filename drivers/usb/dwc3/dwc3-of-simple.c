@@ -396,6 +396,9 @@ int dwc3_set_usb_core_power(struct dwc3 *dwc, bool on)
 	if ((simple->soc_rev < ZYNQMP_SILICON_V4) || !simple->enable_d3_suspend)
 		return 0;
 
+	if (!simple->phy)
+		return 0;
+
 	if (on) {
 		dev_dbg(dwc->dev, "trying to set power state to D0....\n");
 
