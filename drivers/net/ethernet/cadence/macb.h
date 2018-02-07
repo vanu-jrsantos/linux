@@ -13,6 +13,7 @@
 #include <linux/phy.h>
 #include <linux/ptp_clock_kernel.h>
 #include <linux/net_tstamp.h>
+#include <linux/interrupt.h>
 
 #if defined(CONFIG_ARCH_DMA_ADDR_T_64BIT) || defined(CONFIG_MACB_USE_HWSTAMP)
 #define MACB_EXT_DESC
@@ -737,10 +738,6 @@ struct gem_tx_ts {
 #define GEM_TX_FRMLEN_OFFSET			0
 #define GEM_TX_FRMLEN_SIZE			14
 
-#define GEM_SEC_MASK		0xFFFFFFC0
-#define GEM_TSL_SEC_RS		30
-#define GEM_TSH_SEC_LS		2
-#define GEM_TSL_NSEC_MASK	0x3FFFFFFF
 
 /* Buffer descriptor constants */
 #define GEM_RX_CSUM_NONE			0
@@ -750,8 +747,6 @@ struct gem_tx_ts {
 
 /* limit RX checksum offload to TCP and UDP packets */
 #define GEM_RX_CSUM_CHECKED_MASK		2
-
-#define GEM_RX_TS_MASK				0x4
 
 /* struct macb_tx_skb - data about an skb which is being transmitted
  * @skb: skb currently being transmitted, only set for the last buffer
