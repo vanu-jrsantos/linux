@@ -1,13 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Xilinx VCU Init
  *
- * Copyright (C) 2016-2017 Xilinx, Inc.
+ * Copyright (C) 2016 - 2017 Xilinx, Inc.
  *
  * Contacts   Dhaval Shah <dshah@xilinx.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 #include <linux/clk.h>
 #include <linux/device.h>
@@ -105,6 +102,7 @@
  * @aclk: axi clock source
  * @logicore_reg_ba: logicore reg base address
  * @vcu_slcr_ba: vcu_slcr Register base address
+ * @coreclk: core clock frequency
  */
 struct xvcu_device {
 	struct device *dev;
@@ -112,6 +110,7 @@ struct xvcu_device {
 	struct clk *aclk;
 	void __iomem *logicore_reg_ba;
 	void __iomem *vcu_slcr_ba;
+	u32 coreclk;
 };
 
 /**
@@ -244,7 +243,7 @@ static const struct xvcu_pll_cfg xvcu_pll_cfg[] = {
  * Return:	Returns 32bit value from VCU register specified
  *
  */
-static u32 xvcu_read(void __iomem *iomem, u32 offset)
+static inline u32 xvcu_read(void __iomem *iomem, u32 offset)
 {
 	return ioread32(iomem + offset);
 }
@@ -255,7 +254,7 @@ static u32 xvcu_read(void __iomem *iomem, u32 offset)
  * @offset:	vcu reg offset from base
  * @value:	Value to write
  */
-static void xvcu_write(void __iomem *iomem, u32 offset, u32 value)
+static inline void xvcu_write(void __iomem *iomem, u32 offset, u32 value)
 {
 	iowrite32(value, iomem + offset);
 }
@@ -269,7 +268,7 @@ static void xvcu_write(void __iomem *iomem, u32 offset, u32 value)
  * @shift:	vcu reg number of bits to shift the bitfield
  */
 static void xvcu_write_field_reg(void __iomem *iomem, int offset,
-				u32 field, u32 mask, int shift)
+				 u32 field, u32 mask, int shift)
 {
 	u32 val = xvcu_read(iomem, offset);
 
@@ -278,6 +277,19 @@ static void xvcu_write_field_reg(void __iomem *iomem, int offset,
 
 	xvcu_write(iomem, offset, val);
 }
+
+/**
+ * xvcu_get_color_depth - read the color depth register
+ * @xvcu:	Pointer to the xvcu_device structure
+ *
+ * Return:	Returns 32bit value
+ *
+ */
+u32 xvcu_get_color_depth(struct xvcu_device *xvcu)
+{
+	return xvcu_read(xvcu->logicore_reg_ba, VCU_ENC_COLOR_DEPTH);
+}
+EXPORT_SYMBOL_GPL(xvcu_get_color_depth);
 
 /**
  * xvcu_get_memory_depth - read the memory depth register
@@ -291,6 +303,19 @@ u32 xvcu_get_memory_depth(struct xvcu_device *xvcu)
 	return xvcu_read(xvcu->logicore_reg_ba, VCU_MEMORY_DEPTH);
 }
 EXPORT_SYMBOL_GPL(xvcu_get_memory_depth);
+
+/**
+ * xvcu_get_clock_frequency - provide the core clock frequency
+ * @xvcu:	Pointer to the xvcu_device structure
+ *
+ * Return:	Returns 32bit value
+ *
+ */
+u32 xvcu_get_clock_frequency(struct xvcu_device *xvcu)
+{
+	return xvcu->coreclk;
+}
+EXPORT_SYMBOL_GPL(xvcu_get_clock_frequency);
 
 /**
  * xvcu_set_vcu_pll_info - Set the VCU PLL info
@@ -313,8 +338,7 @@ static int xvcu_set_vcu_pll_info(struct xvcu_device *xvcu)
 	u32 divisor_mcu, divisor_core, fvco;
 	u32 clkoutdiv, vcu_pll_ctrl, pll_clk;
 	u32 cfg_val, mod, ctrl;
-	int ret;
-	unsigned int i;
+	int ret, i;
 	const struct xvcu_pll_cfg *found = NULL;
 
 	inte = xvcu_read(xvcu->logicore_reg_ba, VCU_PLL_CLK);
@@ -344,7 +368,8 @@ static int xvcu_set_vcu_pll_info(struct xvcu_device *xvcu)
 
 	refclk = clk_get_rate(xvcu->pll_ref);
 
-	/* The divide-by-2 should be always enabled (==1)
+	/*
+	 * The divide-by-2 should be always enabled (==1)
 	 * to meet the timing in the design.
 	 * Otherwise, it's an error
 	 */
@@ -356,7 +381,7 @@ static int xvcu_set_vcu_pll_info(struct xvcu_device *xvcu)
 		return -EINVAL;
 	}
 
-	for (i = ARRAY_SIZE(xvcu_pll_cfg) - 1; i > 0; i--) {
+	for (i = ARRAY_SIZE(xvcu_pll_cfg) - 1; i >= 0; i--) {
 		const struct xvcu_pll_cfg *cfg = &xvcu_pll_cfg[i];
 
 		fvco = cfg->fbdiv * refclk;
@@ -390,10 +415,10 @@ static int xvcu_set_vcu_pll_info(struct xvcu_device *xvcu)
 		return -EINVAL;
 	}
 
-	coreclk = pll_clk / divisor_core;
+	xvcu->coreclk = pll_clk / divisor_core;
 	mcuclk = pll_clk / divisor_mcu;
 	dev_dbg(xvcu->dev, "Actual Ref clock freq is %uHz\n", refclk);
-	dev_dbg(xvcu->dev, "Actual Core clock freq is %uHz\n", coreclk);
+	dev_dbg(xvcu->dev, "Actual Core clock freq is %uHz\n", xvcu->coreclk);
 	dev_dbg(xvcu->dev, "Actual Mcu clock freq is %uHz\n", mcuclk);
 
 	vcu_pll_ctrl &= ~(VCU_PLL_CTRL_FBDIV_MASK << VCU_PLL_CTRL_FBDIV_SHIFT);
@@ -481,7 +506,8 @@ static int xvcu_set_pll(struct xvcu_device *xvcu)
 	xvcu_write_field_reg(xvcu->vcu_slcr_ba, VCU_PLL_CTRL,
 			     0, VCU_PLL_CTRL_RESET_MASK,
 			     VCU_PLL_CTRL_RESET_SHIFT);
-	/* Defined the timeout for the max time to wait the
+	/*
+	 * Defined the timeout for the max time to wait the
 	 * PLL_STATUS to be locked.
 	 */
 	timeout = jiffies + msecs_to_jiffies(2000);
@@ -526,8 +552,8 @@ static int xvcu_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	xvcu->vcu_slcr_ba = devm_ioremap_nocache(&pdev->dev,
-			res->start, resource_size(res));
+	xvcu->vcu_slcr_ba = devm_ioremap_nocache(&pdev->dev, res->start,
+						 resource_size(res));
 	if (!xvcu->vcu_slcr_ba) {
 		dev_err(&pdev->dev, "vcu_slcr register mapping failed.\n");
 		return -ENOMEM;
@@ -539,8 +565,8 @@ static int xvcu_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	xvcu->logicore_reg_ba = devm_ioremap_nocache(&pdev->dev,
-			res->start, resource_size(res));
+	xvcu->logicore_reg_ba = devm_ioremap_nocache(&pdev->dev, res->start,
+						     resource_size(res));
 	if (!xvcu->logicore_reg_ba) {
 		dev_err(&pdev->dev, "logicore register mapping failed.\n");
 		return -ENOMEM;
@@ -551,31 +577,27 @@ static int xvcu_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Could not get aclk clock\n");
 		return PTR_ERR(xvcu->aclk);
 	}
+
+	xvcu->pll_ref = devm_clk_get(&pdev->dev, "pll_ref");
+	if (IS_ERR(xvcu->pll_ref)) {
+		dev_err(&pdev->dev, "Could not get pll_ref clock\n");
+		return PTR_ERR(xvcu->pll_ref);
+	}
+
 	ret = clk_prepare_enable(xvcu->aclk);
 	if (ret) {
 		dev_err(&pdev->dev, "aclk clock enable failed\n");
 		return ret;
 	}
 
-	xvcu->pll_ref = devm_clk_get(&pdev->dev, "pll_ref");
-	if (IS_ERR(xvcu->pll_ref)) {
-		dev_err(&pdev->dev, "Could not get pll_ref clock\n");
-		ret = PTR_ERR(xvcu->pll_ref);
-		goto error_aclk;
-	}
 	ret = clk_prepare_enable(xvcu->pll_ref);
 	if (ret) {
 		dev_err(&pdev->dev, "pll_ref clock enable failed\n");
 		goto error_aclk;
 	}
 
-	/* TODO : Right now, reset specifier for the VCU is not provided
-	 * so once we get this value then we need to use the reset controller
-	 * framework to make the VCU out of reset.
-	 * Right now, We are directly right value to the VCU_GASKET_INIT reg
-	 * bit 1 to 1 to put VCU out of reset.
-	 */
-	/* Do the Gasket isolation and put the VCU out of reset
+	/*
+	 * Do the Gasket isolation and put the VCU out of reset
 	 * Bit 0 : Gasket isolation
 	 * Bit 1 : put VCU out of reset
 	 */
@@ -616,16 +638,15 @@ error_aclk:
  */
 static int xvcu_remove(struct platform_device *pdev)
 {
-	struct xvcu_device *xvcu = platform_get_drvdata(pdev);
+	struct xvcu_device *xvcu;
+
+	xvcu = platform_get_drvdata(pdev);
+	if (!xvcu)
+		return -ENODEV;
 
 	of_platform_depopulate(&pdev->dev);
 
-	/* TODO : Once we get the reset specifier for VCU then
-	 * use the reset controller framework.
-	 */
-
-	/* Add the the Gasket isolation and put the VCU in reset.
-	 */
+	/* Add the the Gasket isolation and put the VCU in reset. */
 	xvcu_write(xvcu->logicore_reg_ba, VCU_GASKET_INIT, 0);
 
 	clk_disable_unprepare(xvcu->pll_ref);
@@ -636,6 +657,7 @@ static int xvcu_remove(struct platform_device *pdev)
 
 static const struct of_device_id xvcu_of_id_table[] = {
 	{ .compatible = "xlnx,vcu" },
+	{ .compatible = "xlnx,vcu-logicoreip-1.0" },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, xvcu_of_id_table);
