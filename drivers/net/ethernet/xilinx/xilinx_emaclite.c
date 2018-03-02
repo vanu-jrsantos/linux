@@ -573,18 +573,14 @@ static void xemaclite_tx_handler(struct net_device *dev)
 		if (xemaclite_send_data(lp,
 					(u8 *)lp->deferred_skb->data,
 					lp->deferred_skb->len) != 0)
-			goto out;
-		else {
-			dev->stats.tx_bytes += lp->deferred_skb->len;
-			dev_kfree_skb_irq(lp->deferred_skb);
-			lp->deferred_skb = NULL;
-			netif_trans_update(dev); /* prevent tx timeout */
-			netif_wake_queue(dev);
-		}
-	}
+			return;
 
-out:
-	return;
+		dev->stats.tx_bytes += lp->deferred_skb->len;
+		dev_kfree_skb_irq(lp->deferred_skb);
+		lp->deferred_skb = NULL;
+		netif_trans_update(dev); /* prevent tx timeout */
+		netif_wake_queue(dev);
+	}
 }
 
 /**
