@@ -11,6 +11,7 @@
 #include <sound/hdmi-codec.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
+#include <linux/of_graph.h>
 
 #include "adv7511.h"
 
@@ -119,9 +120,6 @@ int adv7511_hdmi_hw_params(struct device *dev, void *data,
 		audio_source = ADV7511_AUDIO_SOURCE_I2S;
 		i2s_format = ADV7511_I2S_FORMAT_LEFT_J;
 		break;
-	case HDMI_SPDIF:
-		audio_source = ADV7511_AUDIO_SOURCE_SPDIF;
-		break;
 	default:
 		return -EINVAL;
 	}
@@ -185,16 +183,37 @@ static void audio_shutdown(struct device *dev, void *data)
 {
 }
 
+static int adv7511_hdmi_i2s_get_dai_id(struct snd_soc_component *component,
+					struct device_node *endpoint)
+{
+	struct of_endpoint of_ep;
+	int ret;
+
+	ret = of_graph_parse_endpoint(endpoint, &of_ep);
+	if (ret < 0)
+		return ret;
+
+	/*
+	 * HDMI sound should be located as reg = <2>
+	 * Then, it is sound port 0
+	 */
+	if (of_ep.port == 2)
+		return 0;
+
+	return -EINVAL;
+}
+
 static const struct hdmi_codec_ops adv7511_codec_ops = {
 	.hw_params	= adv7511_hdmi_hw_params,
 	.audio_shutdown = audio_shutdown,
 	.audio_startup	= audio_startup,
+	.get_dai_id	= adv7511_hdmi_i2s_get_dai_id,
 };
 
-static const struct hdmi_codec_pdata codec_data = {
+static struct hdmi_codec_pdata codec_data = {
 	.ops = &adv7511_codec_ops,
 	.max_i2s_channels = 2,
-	.spdif = 1,
+	.i2s = 1,
 };
 
 int adv7511_audio_init(struct device *dev, struct adv7511 *adv7511)

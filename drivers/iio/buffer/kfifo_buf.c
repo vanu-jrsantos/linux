@@ -5,7 +5,10 @@
 #include <linux/workqueue.h>
 #include <linux/kfifo.h>
 #include <linux/mutex.h>
+#include <linux/iio/iio.h>
+#include <linux/iio/buffer.h>
 #include <linux/iio/kfifo_buf.h>
+#include <linux/iio/buffer_impl.h>
 #include <linux/sched.h>
 #include <linux/poll.h>
 
@@ -176,7 +179,7 @@ static int iio_kfifo_write(struct iio_buffer *r, size_t n,
 
 static const struct iio_buffer_access_funcs kfifo_access_funcs = {
 	.store_to = &iio_store_to_kfifo,
-	.read = &iio_read_kfifo,
+	.read_first_n = &iio_read_kfifo,
 	.data_available = iio_kfifo_buf_data_available,
 	.remove_from = &iio_kfifo_remove_from,
 	.write = &iio_kfifo_write,

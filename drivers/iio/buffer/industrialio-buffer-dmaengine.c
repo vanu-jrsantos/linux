@@ -15,6 +15,7 @@
 
 #include <linux/iio/iio.h>
 #include <linux/iio/buffer.h>
+#include <linux/iio/buffer_impl.h>
 #include <linux/iio/buffer-dma.h>
 #include <linux/iio/buffer-dmaengine.h>
 
@@ -126,7 +127,7 @@ static void iio_dmaengine_buffer_release(struct iio_buffer *buf)
 }
 
 static const struct iio_buffer_access_funcs iio_dmaengine_buffer_ops = {
-	.read = iio_dma_buffer_read,
+	.read_first_n = iio_dma_buffer_read,
 	.write = iio_dma_buffer_write,
 	.set_bytes_per_datum = iio_dma_buffer_set_bytes_per_datum,
 	.set_length = iio_dma_buffer_set_length,
