@@ -338,8 +338,8 @@ static long mwadma_rx_ctl(struct mwadma_dev *mwdev, unsigned int cmd, unsigned l
     struct mw_axidma_params usrbuf;
     struct mwadma_chan *mwchan = mwdev->rx;
     enum mwadma_chan_status     status;
-    unsigned int                next_index, done_index;
-    unsigned int                error;
+    unsigned long               next_index, done_index;
+    unsigned long               error;
     unsigned long int flags;
     struct mwadma_slist *tmp = NULL;
     switch(cmd)
