@@ -327,7 +327,7 @@ config EDAC_TILE
 
 config EDAC_PL310_L2
 	tristate "Pl310 L2 Cache Controller"
-	depends on EDAC_MM_EDAC && ARM
+	depends on ARM
 	help
 	  Support for parity error detection on L2 cache controller
 	  data and tag ram memory
@@ -459,7 +459,7 @@ config EDAC_SYNOPSYS
 
 config EDAC_ZYNQMP_OCM
 	tristate "Xilinx ZynqMP OCM Controller"
-	depends on EDAC_MM_EDAC && ARM64
+	depends on ARCH_ZYNQMP
 	help
 	  Support for error detection and correction on the xilinx ZynqMP OCM
 	  controller.
@@ -474,7 +474,7 @@ config EDAC_XGENE
 config EDAC_CORTEX_ARM64
 	tristate "ARM Cortex A57/A53"
 	default y if !CPU_IDLE
-	depends on !CPU_IDLE && EDAC_MM_EDAC && ARM64
+	depends on !CPU_IDLE && ARM64
 	help
 	  Support for error detection and correction on the
 	  ARM Cortex A57 and A53.
