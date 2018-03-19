@@ -102,7 +102,6 @@ static int dwc3_get_dr_mode(struct dwc3 *dwc)
 }
 
 static void dwc3_event_buffers_cleanup(struct dwc3 *dwc);
-static int dwc3_event_buffers_setup(struct dwc3 *dwc);
 
 static void dwc3_set_prtcap(struct dwc3 *dwc, u32 mode)
 {
@@ -1087,13 +1086,22 @@ static int dwc3_core_init_mode(struct dwc3 *dwc)
 		ret = dwc3_gadget_init(dwc);
 		if (ret) {
 			if (ret != -EPROBE_DEFER)
-				dev_err(dev, "failed to initialize dual-role\n");
+				dev_err(dev, "failed to initialize gadget\n");
 			return ret;
 		}
 
 		ret = dwc3_host_init(dwc);
 		if (ret) {
-			dev_err(dev, "failed to initialize host\n");
+			if (ret != -EPROBE_DEFER)
+				dev_err(dev, "failed to initialize host\n");
+			return ret;
+		}
+
+		INIT_WORK(&dwc->drd_work, __dwc3_set_mode);
+		ret = dwc3_drd_init(dwc);
+		if (ret) {
+			if (ret != -EPROBE_DEFER)
+				dev_err(dev, "failed to initialize dual-role\n");
 			return ret;
 		}
 		break;
@@ -1129,7 +1137,6 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 	u8			lpm_nyet_threshold;
 	u8			tx_de_emphasis;
 	u8			hird_threshold;
-	u32			mdwidth;
 
 	/* default to highest possible threshold */
 	lpm_nyet_threshold = 0xff;
@@ -1287,9 +1294,8 @@ static int dwc3_probe(struct platform_device *pdev)
 	struct device		*dev = &pdev->dev;
 	struct resource		*res;
 	struct dwc3		*dwc;
-
 	int			ret;
-
+	u32			mdwidth;
 	void __iomem		*regs;
 
 	dwc = devm_kzalloc(dev, sizeof(*dwc), GFP_KERNEL);
@@ -1331,6 +1337,11 @@ static int dwc3_probe(struct platform_device *pdev)
 	dwc3_cache_hwparams(dwc);
 
 	spin_lock_init(&dwc->lock);
+
+	/* Set dma coherent mask to DMA BUS data width */
+	mdwidth = DWC3_GHWPARAMS0_MDWIDTH(dwc->hwparams.hwparams0);
+	dev_dbg(dev, "Enabling %d-bit DMA addresses.\n", mdwidth);
+	dma_set_coherent_mask(dev, DMA_BIT_MASK(mdwidth));
 
 	pm_runtime_set_active(dev);
 	pm_runtime_use_autosuspend(dev);

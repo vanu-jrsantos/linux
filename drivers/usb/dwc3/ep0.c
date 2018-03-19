@@ -465,7 +465,12 @@ static int dwc3_ep0_handle_device(struct dwc3 *dwc,
 
 	switch (wValue) {
 	case USB_DEVICE_REMOTE_WAKEUP:
+		if (set)
+			dwc->remote_wakeup = 1;
+		else
+			dwc->remote_wakeup = 0;
 		break;
+
 	/*
 	 * 9.4.1 says only only for SS, in AddressState only for
 	 * default control pipe
@@ -481,6 +486,34 @@ static int dwc3_ep0_handle_device(struct dwc3 *dwc,
 		break;
 	case USB_DEVICE_TEST_MODE:
 		ret = dwc3_ep0_handle_test(dwc, state, wIndex, set);
+		break;
+	case USB_DEVICE_B_HNP_ENABLE:
+		if (set) {
+			if (dwc->gadget.host_request_flag) {
+				struct usb_phy *phy =
+					usb_get_phy(USB_PHY_TYPE_USB3);
+
+				dwc->gadget.b_hnp_enable = 0;
+				dwc->gadget.host_request_flag = 0;
+				otg_start_hnp(phy->otg);
+				usb_put_phy(phy);
+			} else {
+				dwc->gadget.b_hnp_enable = 1;
+			}
+		} else
+			return -EINVAL;
+		break;
+
+	case USB_DEVICE_A_HNP_SUPPORT:
+		/* RH port supports HNP */
+		dev_dbg(dwc->dev,
+			    "SET_FEATURE: USB_DEVICE_A_HNP_SUPPORT\n");
+		break;
+
+	case USB_DEVICE_A_ALT_HNP_SUPPORT:
+		/* other RH port does */
+		dev_dbg(dwc->dev,
+			    "SET_FEATURE: USB_DEVICE_A_ALT_HNP_SUPPORT\n");
 		break;
 	default:
 		ret = -EINVAL;

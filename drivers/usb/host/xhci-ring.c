@@ -981,8 +981,8 @@ void xhci_stream_timeout(unsigned long arg)
 		/* Delete the stream ring timer */
 		del_timer(&ep_ring->stream_timer);
 
-		for (i = 0; i < urb_priv->length; i++) {
-			td = urb_priv->td[i];
+		for (i = 0; i < urb_priv->num_tds; i++) {
+			td = &urb_priv->td[i];
 			list_add_tail(&td->cancelled_td_list,
 					&ep->cancelled_td_list);
 		}
@@ -990,7 +990,7 @@ void xhci_stream_timeout(unsigned long arg)
 		/* Queue a stop endpoint command, but only if this is
 		 * the first cancellation to be handled.
 		 */
-		if (!(ep->ep_state & EP_HALT_PENDING)) {
+		if (!(ep->ep_state & EP_STOP_CMD_PENDING)) {
 			command = xhci_alloc_command(xhci, false,
 					false, GFP_ATOMIC);
 			if (!command) {
@@ -1001,8 +1001,7 @@ void xhci_stream_timeout(unsigned long arg)
 				return;
 			}
 
-			ep->ep_state |= EP_HALT_PENDING;
-			ep->stop_cmds_pending++;
+			ep->ep_state |= EP_STOP_CMD_PENDING;
 			ep->stop_cmd_timer.expires = jiffies +
 				XHCI_STOP_EP_CMD_TIMEOUT * HZ;
 			add_timer(&ep->stop_cmd_timer);

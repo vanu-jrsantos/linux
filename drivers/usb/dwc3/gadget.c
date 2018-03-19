@@ -998,9 +998,8 @@ static void __dwc3_prepare_one_trb(struct dwc3_ep *dep, struct dwc3_trb *trb,
 
 	trb->ctrl |= DWC3_TRB_CTRL_HWO;
 
-	if ((!req->request.no_interrupt && !chain) ||
-	    (dwc3_calc_trbs_left(dep) == 0))
-		trb->ctrl |= DWC3_TRB_CTRL_IOC | DWC3_TRB_CTRL_ISP_IMI;
+	if ((!no_interrupt && !chain) || (dwc3_calc_trbs_left(dep) == 0))
+		trb->ctrl |= DWC3_TRB_CTRL_IOC;
 
 	trace_dwc3_prepare_trb(dep, trb);
 }
@@ -1016,11 +1015,20 @@ static void dwc3_prepare_one_trb(struct dwc3_ep *dep,
 		struct dwc3_request *req, unsigned chain, unsigned node)
 {
 	struct dwc3_trb		*trb;
-	unsigned		length = req->request.length;
+	unsigned int		length;
+	dma_addr_t		dma;
 	unsigned		stream_id = req->request.stream_id;
 	unsigned		short_not_ok = req->request.short_not_ok;
 	unsigned		no_interrupt = req->request.no_interrupt;
-	dma_addr_t		dma = req->request.dma;
+
+	if (req->request.num_sgs > 0) {
+		/* Use scattergather list addresses */
+		length = sg_dma_len(req->sg_to_start);
+		dma = sg_dma_address(req->sg_to_start);
+	} else {
+		length = req->request.length;
+		dma = req->request.dma;
+	}
 
 	trb = &dep->trb_pool[dep->trb_enqueue];
 
@@ -1224,6 +1232,8 @@ static void dwc3_prepare_trbs(struct dwc3_ep *dep)
 			return;
 
 		req->sg			= req->request.sg;
+		req->sg_to_start	= req->sg;
+		req->num_queued_sgs	= 0;
 		req->num_pending_sgs	= req->request.num_mapped_sgs;
 
 		if (req->num_pending_sgs > 0)
@@ -2538,6 +2548,13 @@ static void dwc3_endpoint_transfer_complete(struct dwc3 *dwc,
 	 */
 	if (!dep->endpoint.desc)
 		return;
+
+	/*
+	 * Delete the timer that was started in __dwc3_gadget_kick_transfer()
+	 * for stream capable endpoints.
+	 */
+	if (dep->stream_capable)
+		del_timer(&dep->stream_timeout_timer);
 
 	if (!usb_endpoint_xfer_isoc(dep->endpoint.desc)) {
 		int ret;

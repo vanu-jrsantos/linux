@@ -108,10 +108,7 @@ int dwc3_gadget_ep0_set_halt(struct usb_ep *ep, int value);
 int dwc3_gadget_ep0_queue(struct usb_ep *ep, struct usb_request *request,
 		gfp_t gfp_flags);
 int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value, int protocol);
-int __dwc3_gadget_ep_enable(struct dwc3_ep *dep,
-		const struct usb_endpoint_descriptor *desc,
-		const struct usb_ss_ep_comp_descriptor *comp_desc,
-		bool ignore, bool restore);
+int __dwc3_gadget_ep_enable(struct dwc3_ep *dep, bool modify, bool restore);
 int __dwc3_gadget_ep_disable(struct dwc3_ep *dep);
 int __dwc3_gadget_kick_transfer(struct dwc3_ep *dep, u16 cmd_param);
 void dwc3_stop_active_transfer(struct dwc3 *dwc, u32 epnum, bool force);
