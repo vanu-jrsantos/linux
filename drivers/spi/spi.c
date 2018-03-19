@@ -2790,8 +2790,8 @@ static int __spi_validate(struct spi_device *spi, struct spi_message *message)
 	 *  Data stripe option is selected if and only if when
 	 *  two chips are enabled
 	 */
-	if ((master->flags & SPI_MASTER_DATA_STRIPE)
-			&& !(master->flags & SPI_MASTER_BOTH_CS))
+	if ((ctlr->flags & SPI_MASTER_DATA_STRIPE)
+			&& !(ctlr->flags & SPI_MASTER_BOTH_CS))
 			return -EINVAL;
 
 	/* Half-duplex links include original MicroWire, and ones with
