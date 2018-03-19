@@ -185,20 +185,6 @@ static inline int write_sr(struct spi_nor *nor, u8 val)
 }
 
 /*
- * Write status Register and configuration register with 2 bytes
- * The first byte will be written to the status register, while the
- * second byte will be written to the configuration register.
- * Return negative if error occured.
- */
-static int write_sr_cr(struct spi_nor *nor, u16 val)
-{
-	nor->cmd_buf[0] = val & 0xff;
-	nor->cmd_buf[1] = (val >> 8);
-
-	return nor->write_reg(nor, SPINOR_OP_WRSR, nor->cmd_buf, 2);
-}
-
-/*
  * Set write enable latch with Write Enable command.
  * Returns negative if error occurred.
  */
@@ -448,6 +434,35 @@ static int spi_nor_wait_till_ready(struct spi_nor *nor)
 {
 	return spi_nor_wait_till_ready_with_timeout(nor,
 						    DEFAULT_READY_WAIT_JIFFIES);
+}
+
+/*
+ * Write status Register and configuration register with 2 bytes
+ * The first byte will be written to the status register, while the
+ * second byte will be written to the configuration register.
+ * Return negative if error occurred.
+ */
+static int write_sr_cr(struct spi_nor *nor, u8 *sr_cr)
+{
+	int ret;
+
+	write_enable(nor);
+
+	ret = nor->write_reg(nor, SPINOR_OP_WRSR, sr_cr, 2);
+	if (ret < 0) {
+		dev_err(nor->dev,
+			"error while writing configuration register\n");
+		return -EINVAL;
+	}
+
+	ret = spi_nor_wait_till_ready(nor);
+	if (ret) {
+		dev_err(nor->dev,
+			"timeout while writing configuration register\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 /*
@@ -772,7 +787,7 @@ static int write_sr_modify_protection(struct spi_nor *nor, uint8_t status,
 				      uint8_t lock_bits)
 {
 	uint8_t status_new, bp_mask;
-	u16 val;
+	u8 val[2];
 
 	status_new = status & ~SR_BP_BIT_MASK;
 	bp_mask = (lock_bits << SR_BP_BIT_OFFSET) & SR_BP_BIT_MASK;
@@ -796,8 +811,8 @@ static int write_sr_modify_protection(struct spi_nor *nor, uint8_t status,
 
 	/* For spansion flashes */
 	if (nor->jedec_id == CFI_MFR_AMD) {
-		val = read_cr(nor) << 8;
-		val |= status_new;
+		val[1] = read_cr(nor) << 8;
+		val[0] |= status_new;
 		if (write_sr_cr(nor, val) < 0)
 			return 1;
 	} else {
@@ -1331,7 +1346,8 @@ static const struct flash_info spi_nor_ids[] = {
 	{ "640s33b",  INFO(0x898913, 0, 64 * 1024, 128, 0) },
 
 	/* ISSI */
-	{ "is25lp256d", INFO(0x9d6019, 0, 64 * 1024, 512, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | USE_FSR | SPI_NOR_HAS_LOCK) },
+	{ "is25lp256d", INFO(0x9d6019, 0, 64 * 1024, 512, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_HAS_LOCK) },
+	{ "is25wp256d", INFO(0x9d7019, 0, 64 * 1024, 512, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_HAS_LOCK) },
 	{ "is25cd512", INFO(0x7f9d20, 0, 32 * 1024,   2, SECT_4K) },
 
 	/* Macronix */
@@ -1355,6 +1371,7 @@ static const struct flash_info spi_nor_ids[] = {
 	{ "mx66l51235l", INFO(0xc2201a, 0, 64 * 1024, 1024, SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
 	{ "mx66u51235f", INFO(0xc2253a, 0, 64 * 1024, 1024, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_4B_OPCODES) },
 	{ "mx66l1g45g",  INFO(0xc2201b, 0, 64 * 1024, 2048, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+	{ "mx66u1g45g",  INFO(0xc2253b, 0, 64 * 1024, 2048, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
 	{ "mx66l1g55g",  INFO(0xc2261b, 0, 64 * 1024, 2048, SPI_NOR_QUAD_READ) },
 
 	/* Micron */
@@ -1549,6 +1566,7 @@ static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
 	u32 rem_bank_len = 0;
 	u8 bank;
 	u8 is_ofst_odd = 0;
+	loff_t addr = 0;
 
 #define OFFSET_16_MB 0x1000000
 
@@ -1602,6 +1620,9 @@ static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
 		ret = spi_nor_wait_till_ready(nor);
 		if (ret)
 			goto read_err;
+
+		if (nor->flags & SNOR_F_S3AN_ADDR_DEFAULT)
+			addr = spi_nor_s3an_addr_convert(nor, offset);
 
 		ret = nor->read(nor, offset, read_len, buf);
 		if (ret == 0) {
@@ -1727,6 +1748,26 @@ static int spi_nor_write(struct mtd_info *mtd, loff_t to, size_t len,
 #define OFFSET_16_MB 0x1000000
 
 	dev_dbg(nor->dev, "to 0x%08x, len %zd\n", (u32)to, len);
+
+	/*
+	 * Cannot write to odd offset in parallel mode,
+	 * so write 2 bytes first
+	 */
+	if ((nor->isparallel) && (to & 1)) {
+
+		u8 two[2] = {0xff, buf[0]};
+		size_t local_retlen;
+
+		ret = spi_nor_write(mtd, to & ~1, 2, &local_retlen, two);
+		if (ret < 0)
+			return ret;
+
+		*retlen += 1; /* We've written only one actual byte */
+		++buf;
+		--len;
+		++to;
+	}
+
 	ret = spi_nor_lock_and_prep(nor, SPI_NOR_OPS_WRITE);
 	if (ret)
 		return ret;
@@ -2809,6 +2850,7 @@ static int spi_nor_init_params(struct spi_nor *nor,
 				   SNOR_HWCAPS_PP_QUAD)) {
 		switch (JEDEC_MFR(info)) {
 		case SNOR_MFR_MACRONIX:
+		case SNOR_MFR_ISSI:
 			params->quad_enable = macronix_quad_enable;
 			break;
 
@@ -3038,12 +3080,14 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 		 const struct spi_nor_hwcaps *hwcaps)
 {
 	struct spi_nor_flash_parameter params;
-	const struct flash_info *info = NULL;
+	struct flash_info *info = NULL;
 	struct device *dev = nor->dev;
 	struct mtd_info *mtd = &nor->mtd;
 	struct device_node *np = spi_nor_get_flash_node(nor);
+	struct device_node *np_spi;
 	int ret;
 	int i;
+	u32 is_dual;
 
 	ret = spi_nor_check(nor);
 	if (ret)
@@ -3055,10 +3099,10 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	nor->write_proto = SNOR_PROTO_1_1_1;
 
 	if (name)
-		info = spi_nor_match_id(name);
+		info = (struct flash_info *)spi_nor_match_id(name);
 	/* Try to auto-detect if chip name wasn't specified or not found */
 	if (!info)
-		info = spi_nor_read_id(nor);
+		info = (struct flash_info *)spi_nor_read_id(nor);
 	if (IS_ERR_OR_NULL(info))
 		return -ENOENT;
 
@@ -3082,7 +3126,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 			 */
 			dev_warn(dev, "found %s, expected %s\n",
 				 jinfo->name, info->name);
-			info = jinfo;
+			info = (struct flash_info *)jinfo;
 		}
 	}
 
@@ -3112,6 +3156,11 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	    info->flags & SPI_NOR_HAS_LOCK) {
 		write_enable(nor);
 		write_sr(nor, 0);
+		if (info->flags & SST_GLOBAL_PROT_UNLK) {
+			write_enable(nor);
+			/* Unlock global write protection bits */
+			nor->write_reg(nor, GLOBAL_BLKPROT_UNLK, NULL, 0);
+		}
 		spi_nor_wait_till_ready(nor);
 	}
 
